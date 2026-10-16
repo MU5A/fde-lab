@@ -12,13 +12,16 @@ license = { text = "MIT" }
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+auth = ["fastapi>=0.115", "pyjwt[crypto]>=2.9", "uvicorn>=0.30"]
+dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27", "fde-lab[auth]"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = ["integration: needs a running Keycloak container (see tests/auth/test_keycloak_integration.py)"]
 
 [tool.ruff]
 line-length = 100
@@ -26,3 +29,6 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]
