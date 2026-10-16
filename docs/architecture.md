@@ -64,7 +64,7 @@ sequenceDiagram
 | Component | What it does | Status |
 |---|---|---|
 | Synthetic customer data and gold rules | Seeded generator, routing rules, access-control oracle | **Built (Day 1)** |
-| Auth bridge | Validates OIDC tokens and maps groups to roles | Planned, Day 2 |
+| Auth bridge | Validates OIDC tokens and maps groups to roles, see [auth.md](auth.md) | **Built (Day 2)** |
 | Tenant isolation | Row-level security per tenant and role, user provisioning | Planned, Day 3 |
 | Retrieval with access control | The access filter runs inside the query, so unauthorized text never reaches the model | Planned, Day 4 |
 | PII guardrail proxy | Masks identifiers before a model call and restores them after | Planned, Day 5 |

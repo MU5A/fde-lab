@@ -31,7 +31,7 @@ other, which separate demos cannot.
 | Day | Date | Module | Status |
 |---|---|---|---|
 | 1 | Oct 16 | Discovery and scoping, synthetic customer, gold rules | **Done** |
-| 2 | Oct 17 | OIDC auth bridge | Planned |
+| 2 | Oct 17 | OIDC auth bridge | **Done** |
 | 3 | Oct 18 | Tenant isolation with row-level security | Planned |
 | 4 | Oct 19 | Permission-filtered retrieval | Planned |
 | 5 | Oct 20 | PII guardrail proxy | Planned |
@@ -86,23 +86,55 @@ other, which separate demos cannot.
 
 No route is a denial. The system routes, and clinicians decide.
 
+## Day 2: what exists
+
+- [`docs/auth.md`](docs/auth.md): the auth bridge, the attacks it stops and the test for each,
+  what is simulated, and what it does not do.
+- A FastAPI service that verifies RS256 tokens against the identity provider's published keys,
+  checks issuer, audience and lifetime, and resolves exactly one role and region from the groups
+  claim. No role or ambiguous role is a 403, never a guess.
+- A Keycloak realm generated from the synthetic users and committed under `infra/keycloak/`, with
+  a test that fails if it drifts from the generator.
+- 169 tests that need nothing but Python, plus 37 that run against real Keycloak tokens in a
+  separate CI job. An unreachable Keycloak fails that job instead of skipping.
+- A key-rotation bug the tests found and fixed. See "A bug the tests found" in the auth doc.
+
+### What the tests prove
+
+| Property | Test |
+|---|---|
+| `alg: none`, HS256-with-public-key and other forged-algorithm tokens are refused | `test_tokens.py` |
+| Wrong issuer, wrong audience, expired, not-yet-valid and missing claims are 401 | `test_tokens.py` |
+| A token for another application in the same realm is refused, using real Keycloak | `test_token_for_a_different_client_is_rejected` |
+| A user in zero or two role groups is refused, and near-miss group names grant nothing | `test_tokens.py`, `test_keycloak_integration.py` |
+| All 15 users against all 126 documents over HTTP equal the access oracle | `test_fetch_by_id_agrees_for_every_document` |
+| Hand-written expectations, so a bug in the oracle cannot hide | `TestHandWrittenInvariants` |
+| A rotated signing key works at once, and random key ids cannot hammer the provider | `test_jwks.py` |
+
 ## Run it
 
-Requires Python 3.11 or newer.
+Requires Python 3.11 or newer. The integration tests also need Docker.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q
 python -m fde_lab.datagen --seed 42 --out data/generated --print-digest
+
+docker compose -f infra/compose.yaml up -d
+REQUIRE_KEYCLOAK=1 pytest -m integration -q
+python -m fde_lab.auth
 ```
 
 ## Layout
 
 ```
-docs/                    discovery, architecture, synthetic data
+docs/                    discovery, architecture, synthetic data, auth bridge
 src/fde_lab/datagen/     generator, routing rules, access-control oracle
+src/fde_lab/auth/        token verification, role resolution, API, Keycloak realm builder
+infra/                   Keycloak compose file and the generated realm
 tests/                   determinism, synthetic-data guard, rules, access control
+tests/auth/              token attacks, access matrix, key rotation, real-Keycloak tests
 ```
 
 ## License
