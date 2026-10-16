@@ -1,0 +1,443 @@
+{
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "fde-lab-api",
+      "directAccessGrantsEnabled": true,
+      "enabled": true,
+      "name": "Pre-authorization API",
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "config": {
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          },
+          "consentRequired": false,
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper"
+        },
+        {
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "fde-lab-api"
+          },
+          "consentRequired": false,
+          "name": "api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper"
+        }
+      ],
+      "publicClient": true,
+      "redirectUris": [
+        "http://localhost:8000/*"
+      ],
+      "standardFlowEnabled": true,
+      "webOrigins": [
+        "+"
+      ]
+    },
+    {
+      "clientId": "other-app",
+      "directAccessGrantsEnabled": true,
+      "enabled": true,
+      "name": "Some other application",
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "config": {
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          },
+          "consentRequired": false,
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper"
+        }
+      ],
+      "publicClient": true,
+      "redirectUris": [
+        "http://localhost:8000/*"
+      ],
+      "standardFlowEnabled": true,
+      "webOrigins": [
+        "+"
+      ]
+    }
+  ],
+  "enabled": true,
+  "groups": [
+    {
+      "name": "acme-claims-analysts-central",
+      "path": "/acme-claims-analysts-central"
+    },
+    {
+      "name": "acme-claims-analysts-coast",
+      "path": "/acme-claims-analysts-coast"
+    },
+    {
+      "name": "acme-claims-analysts-north",
+      "path": "/acme-claims-analysts-north"
+    },
+    {
+      "name": "acme-it-admins",
+      "path": "/acme-it-admins"
+    },
+    {
+      "name": "acme-medical-directors",
+      "path": "/acme-medical-directors"
+    },
+    {
+      "name": "acme-um-reviewers-central",
+      "path": "/acme-um-reviewers-central"
+    },
+    {
+      "name": "acme-um-reviewers-coast",
+      "path": "/acme-um-reviewers-coast"
+    },
+    {
+      "name": "acme-um-reviewers-mars",
+      "path": "/acme-um-reviewers-mars"
+    },
+    {
+      "name": "acme-um-reviewers-north",
+      "path": "/acme-um-reviewers-north"
+    }
+  ],
+  "realm": "acme",
+  "registrationAllowed": false,
+  "sslRequired": "none",
+  "users": [
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-001"
+        }
+      ],
+      "email": "syn.reviewer.north.1@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Maria",
+      "groups": [
+        "/acme-um-reviewers-north"
+      ],
+      "lastName": "Silva",
+      "username": "syn.reviewer.north.1@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-002"
+        }
+      ],
+      "email": "syn.reviewer.north.2@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Kofi",
+      "groups": [
+        "/acme-um-reviewers-north"
+      ],
+      "lastName": "Nunez",
+      "username": "syn.reviewer.north.2@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-003"
+        }
+      ],
+      "email": "syn.reviewer.north.3@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Liam",
+      "groups": [
+        "/acme-um-reviewers-north"
+      ],
+      "lastName": "Hughes",
+      "username": "syn.reviewer.north.3@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-004"
+        }
+      ],
+      "email": "syn.analyst.north@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Emeka",
+      "groups": [
+        "/acme-claims-analysts-north"
+      ],
+      "lastName": "Khan",
+      "username": "syn.analyst.north@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-005"
+        }
+      ],
+      "email": "syn.reviewer.coast.1@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Aisha",
+      "groups": [
+        "/acme-um-reviewers-coast"
+      ],
+      "lastName": "Moyo",
+      "username": "syn.reviewer.coast.1@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-006"
+        }
+      ],
+      "email": "syn.reviewer.coast.2@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Samuel",
+      "groups": [
+        "/acme-um-reviewers-coast"
+      ],
+      "lastName": "Khan",
+      "username": "syn.reviewer.coast.2@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-007"
+        }
+      ],
+      "email": "syn.reviewer.coast.3@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Tariq",
+      "groups": [
+        "/acme-um-reviewers-coast"
+      ],
+      "lastName": "Osei",
+      "username": "syn.reviewer.coast.3@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-008"
+        }
+      ],
+      "email": "syn.analyst.coast@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Mateo",
+      "groups": [
+        "/acme-claims-analysts-coast"
+      ],
+      "lastName": "Chen",
+      "username": "syn.analyst.coast@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-009"
+        }
+      ],
+      "email": "syn.reviewer.central.1@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Kofi",
+      "groups": [
+        "/acme-um-reviewers-central"
+      ],
+      "lastName": "Obi",
+      "username": "syn.reviewer.central.1@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-010"
+        }
+      ],
+      "email": "syn.reviewer.central.2@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Victor",
+      "groups": [
+        "/acme-um-reviewers-central"
+      ],
+      "lastName": "Yusuf",
+      "username": "syn.reviewer.central.2@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-011"
+        }
+      ],
+      "email": "syn.reviewer.central.3@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Amara",
+      "groups": [
+        "/acme-um-reviewers-central"
+      ],
+      "lastName": "Jain",
+      "username": "syn.reviewer.central.3@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-012"
+        }
+      ],
+      "email": "syn.analyst.central@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Hassan",
+      "groups": [
+        "/acme-claims-analysts-central"
+      ],
+      "lastName": "Kamara",
+      "username": "syn.analyst.central@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-013"
+        }
+      ],
+      "email": "syn.md.1@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Amina",
+      "groups": [
+        "/acme-medical-directors"
+      ],
+      "lastName": "Singh",
+      "username": "syn.md.1@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-014"
+        }
+      ],
+      "email": "syn.md.2@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Zainab",
+      "groups": [
+        "/acme-medical-directors"
+      ],
+      "lastName": "Abara",
+      "username": "syn.md.2@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-SYN-U-015"
+        }
+      ],
+      "email": "syn.admin.1@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Kofi",
+      "groups": [
+        "/acme-it-admins"
+      ],
+      "lastName": "Jain",
+      "username": "syn.admin.1@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-extra-1"
+        }
+      ],
+      "email": "syn.nogroups@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Nora",
+      "groups": [],
+      "lastName": "Groups",
+      "username": "syn.nogroups@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-extra-2"
+        }
+      ],
+      "email": "syn.ambiguous@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Amir",
+      "groups": [
+        "/acme-um-reviewers-north",
+        "/acme-it-admins"
+      ],
+      "lastName": "Both",
+      "username": "syn.ambiguous@acme.test"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "synthetic-extra-3"
+        }
+      ],
+      "email": "syn.unknown-group@acme.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Uma",
+      "groups": [
+        "/acme-um-reviewers-mars"
+      ],
+      "lastName": "Mars",
+      "username": "syn.unknown-group@acme.test"
+    }
+  ]
+}
