@@ -47,3 +47,17 @@ def can_read(user: dict, doc: dict) -> bool:
     if doc["tenant"] == "*" or user["region"] == "*":
         return True
     return user["region"] == doc["tenant"]
+
+
+REQUEST_READER_ROLES = ("reviewer", "medical_director")
+
+
+def can_read_request(user: dict, member: dict) -> bool:
+    """Pre-authorization requests carry clinical detail, so only clinicians may read them.
+
+    Reviewers are limited to members in their own region. Claims analysts and administrators
+    never read a request.
+    """
+    if user["role"] not in REQUEST_READER_ROLES:
+        return False
+    return user["region"] == "*" or user["region"] == member["region"]
