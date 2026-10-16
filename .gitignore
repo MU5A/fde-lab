@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Generated synthetic data is reproducible from a seed, so it is not committed.
+data/generated/
+.DS_Store
