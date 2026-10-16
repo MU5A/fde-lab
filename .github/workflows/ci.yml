@@ -37,3 +37,42 @@ jobs:
         run: |
           python -m fde_lab.datagen --seed 42 --out /tmp/acme --print-digest | tee /tmp/out.txt
           grep -q "digest: $(cat tests/golden_digest.txt)" /tmp/out.txt
+
+  keycloak:
+    name: Keycloak integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Start Keycloak with the generated realm
+        run: docker compose -f infra/compose.yaml up -d
+
+      - name: Wait for the realm to be served
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8080/realms/acme/.well-known/openid-configuration > /dev/null; then
+              echo "realm ready after $((i * 2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "realm never became ready"
+          docker compose -f infra/compose.yaml logs
+          exit 1
+
+      # REQUIRE_KEYCLOAK makes an unreachable server a failure instead of a skip.
+      - name: Integration tests against real Keycloak tokens
+        env:
+          REQUIRE_KEYCLOAK: "1"
+        run: pytest -m integration -q
+
+      - name: Keycloak logs
+        if: failure()
+        run: docker compose -f infra/compose.yaml logs
