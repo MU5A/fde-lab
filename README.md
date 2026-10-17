@@ -32,7 +32,7 @@ other, which separate demos cannot.
 |---|---|---|---|
 | 1 | Oct 16 | Discovery and scoping, synthetic customer, gold rules | **Done** |
 | 2 | Oct 17 | OIDC auth bridge | **Done** |
-| 3 | Oct 18 | Tenant isolation with row-level security | Planned |
+| 3 | Oct 18 | Tenant isolation with row-level security | **Done** |
 | 4 | Oct 19 | Permission-filtered retrieval | Planned |
 | 5 | Oct 20 | PII guardrail proxy | Planned |
 | 6 | Oct 21 | Human-approval workflow | Planned |
@@ -95,7 +95,7 @@ No route is a denial. The system routes, and clinicians decide.
   claim. No role or ambiguous role is a 403, never a guess.
 - A Keycloak realm generated from the synthetic users and committed under `infra/keycloak/`, with
   a test that fails if it drifts from the generator.
-- 169 tests that need nothing but Python, plus 37 that run against real Keycloak tokens in a
+- 171 tests that need nothing but Python, plus 37 that run against real Keycloak tokens in a
   separate CI job. An unreachable Keycloak fails that job instead of skipping.
 - A key-rotation bug the tests found and fixed. See "A bug the tests found" in the auth doc.
 
@@ -111,9 +111,39 @@ No route is a denial. The system routes, and clinicians decide.
 | Hand-written expectations, so a bug in the oracle cannot hide | `TestHandWrittenInvariants` |
 | A rotated signing key works at once, and random key ids cannot hammer the provider | `test_jwks.py` |
 
+## Day 3: what exists
+
+- [`docs/tenant-isolation.md`](docs/tenant-isolation.md): the policies, nine traps and how each is
+  handled, what the API change means, and what row-level security does not protect against.
+- Postgres row-level security on every table, enforced for a dedicated application role that owns
+  nothing and cannot bypass the policies. The API's queries carry no access filter at all.
+- A startup guard that refuses to run as a superuser, an owner or a `BYPASSRLS` role, and refuses
+  a schema with an unprotected table. These are the silent ways RLS stops working.
+- Identifying columns (`ssn`, `phone`, `email`) that the application role cannot read, and an
+  append-only decisions table that Day 6 will write to.
+- 262 tests in their own CI job against a real Postgres. A hidden resource now returns the same
+  404 as a missing one, which closes a limit recorded on Day 2.
+- A mutation run: 17 deliberate breakages of the policies, grants and session code, every one
+  caught by the suite.
+
+### What the tests prove
+
+| Property | Test |
+|---|---|
+| The SQL policies equal the Python access oracle for all 15 users on documents, requests and members | `TestMatrix` |
+| A query with no filter, an always-true filter, a cross join or a subquery cannot see hidden rows | `TestTheWorstQuery` |
+| An unset, unknown or inconsistent identity sees nothing, including injection strings | `TestFailClosed` |
+| A principal does not survive into the next user of a pooled connection | `TestPooledConnections` |
+| The pool will not start as a superuser, an owner or a role that bypasses RLS | `TestStartupGuard` |
+| Writing into another region, or under someone else's name, is refused | `test_decisions.py` |
+| A failed write does not reveal whether a hidden request exists | `TestWhatAFailedWriteReveals` |
+| A default view leaks across regions and a `security_invoker` view does not | `TestGotchas` |
+| Any future table without row security fails the build | `TestCatalogGuards` |
+| The Postgres store and the in-memory store return identical responses | `test_api_pg.py` |
+
 ## Run it
 
-Requires Python 3.11 or newer. The integration tests also need Docker.
+Requires Python 3.11 or newer. The integration and database tests also need Docker.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -121,20 +151,24 @@ pip install -e ".[dev]"
 pytest -q
 python -m fde_lab.datagen --seed 42 --out data/generated --print-digest
 
-docker compose -f infra/compose.yaml up -d
+docker compose -f infra/compose.yaml up -d --wait
+python -m fde_lab.db
 REQUIRE_KEYCLOAK=1 pytest -m integration -q
-python -m fde_lab.auth
+REQUIRE_POSTGRES=1 pytest -m db -q
+DATABASE_URL=postgresql://fde_app:synthetic-app@localhost:5432/fdelab python -m fde_lab.auth
 ```
 
 ## Layout
 
 ```
-docs/                    discovery, architecture, synthetic data, auth bridge
+docs/                    discovery, architecture, synthetic data, auth bridge, tenant isolation
 src/fde_lab/datagen/     generator, routing rules, access-control oracle
 src/fde_lab/auth/        token verification, role resolution, API, Keycloak realm builder
-infra/                   Keycloak compose file and the generated realm
+src/fde_lab/db/          schema and policies, session handling, startup guard, Postgres store
+infra/                   Keycloak and Postgres compose file, the generated realm
 tests/                   determinism, synthetic-data guard, rules, access control
 tests/auth/              token attacks, access matrix, key rotation, real-Keycloak tests
+tests/db/                row-level security, pooling, writes, startup guard, API on Postgres
 ```
 
 ## License

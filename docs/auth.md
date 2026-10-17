@@ -22,13 +22,18 @@ flowchart TD
   D -- yes --> E{"Groups map to exactly one role?"}
   E -- "none" --> X5["403 no_role"]
   E -- "more than one" --> X6["403 ambiguous_role"]
-  E -- one --> F{"Oracle allows this resource?"}
-  F -- no --> X7["403 forbidden"]
+  E -- one --> F{"Can this caller see the resource?"}
+  F -- no --> X7["404 not_found, same as a missing id"]
   F -- yes --> OK["200"]
 ```
 
-401 means the token cannot be trusted. 403 means the token is fine and the answer is no. 503 means
-the identity provider's keys could not be fetched, which is an outage and not a bad token.
+401 means the token cannot be trusted. 403 means the token is fine but its groups give no single
+role, or the role lacks the endpoint. 404 means there is no such resource for this caller, and a
+resource the caller may not read looks exactly like one that does not exist. 503 means the
+identity provider's keys could not be fetched, which is an outage and not a bad token.
+
+Day 2 returned 403 for a document the caller could not read. Day 3 changed that to 404, see the
+last section.
 
 ## Attacks and where each is stopped
 
@@ -62,7 +67,7 @@ directors (all regions) can read them. Claims analysts and administrators cannot
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                                    # 169 tests, no containers needed
+pytest -q                                    # 171 tests, no containers needed
 
 docker compose -f infra/compose.yaml up -d   # Keycloak 26.7.5 with the acme realm imported
 REQUIRE_KEYCLOAK=1 pytest -m integration -q  # 37 tests using real Keycloak tokens
@@ -118,9 +123,14 @@ I measured that before writing a defence for a problem that did not exist.
   token introspection or a short lifetime, and costs a provider call per request.
 - **Authorization decisions are only as fresh as the token.** A user moved to a different group
   gets the old role until the next token.
-- **A 403 on a document id confirms the id exists.** List endpoints filter silently. Inside one
-  organization this is an accepted trade for an explicit refusal that can be audited. A
-  multi-tenant SaaS would return 404 instead.
-- **The in-memory store is the dataset, not a database.** Day 3 moves enforcement into the
-  database with row-level security, so a bug in this layer is no longer the only barrier.
-- **No audit log yet.** Denials are returned but not recorded. Day 13 adds that.
+- **No audit log yet.** Denials are returned but not recorded. Day 13 adds that, and it has to
+  record the attempt before the query, because a hidden row and a missing row now look the same.
+
+## Changed on Day 3
+
+- **A hidden resource now returns 404, not 403.** This closes a limit listed here on Day 2: a 403
+  on a document id confirmed the id existed. The tests now require the response for a forbidden
+  id to be byte for byte the same as the response for an id that was never there.
+- **The store is an interface.** `Store` (in memory, filtered by the Python oracle) and `PgStore`
+  (Postgres, filtered by row-level security) both satisfy it, and a test checks that they return
+  identical bodies. See [tenant-isolation.md](tenant-isolation.md).
