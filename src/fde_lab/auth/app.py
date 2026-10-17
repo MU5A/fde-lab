@@ -1,10 +1,13 @@
 """The auth bridge API.
 
-Status codes: 401 when the token cannot be trusted, 403 when it is valid but the caller may not
-read the resource, 404 for an id that does not exist, 503 when the identity provider's keys
-cannot be fetched. A 403 on a document id does reveal that the id exists. Inside one
-organization that is an accepted trade for an explicit, auditable refusal. List endpoints
-filter silently instead.
+Status codes: 401 when the token cannot be trusted, 403 when the caller lacks the role for an
+endpoint, 404 for an id that does not exist or that the caller may not see, and 503 when the
+identity provider's keys cannot be fetched.
+
+A resource the caller may not read is reported exactly like one that does not exist, so a
+caller cannot probe which ids are real. Day 2 returned 403 for these and said so as a known
+limit. Day 3 moves row filtering into the database, where a hidden row is simply absent, so the
+two cases can no longer be told apart and the limit is closed.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -21,8 +25,19 @@ from ..datagen.acl import can_read, can_read_request
 from .tokens import Identity, KeyServiceUnavailable, RoleError, TokenError, TokenVerifier
 
 
+class DataStore(Protocol):
+    """What the API needs from storage. Every call is made on behalf of a caller."""
+
+    def list_documents(self, user: Identity) -> list[dict]: ...
+    def get_document(self, user: Identity, doc_id: str) -> dict | None: ...
+    def get_request(self, user: Identity, request_id: str) -> dict | None: ...
+    def list_users(self, user: Identity) -> list[dict]: ...
+
+
 @dataclass(frozen=True)
 class Store:
+    """The dataset in memory, filtered in Python by the access oracle."""
+
     users: list[dict]
     documents: list[dict]
     documents_by_id: dict[str, dict]
@@ -41,8 +56,25 @@ class Store:
             members_by_id={m["member_id"]: m for m in data["members"]},
         )
 
+    def list_documents(self, user: Identity) -> list[dict]:
+        return [d for d in self.documents if can_read(user.as_user(), d)]
 
-def create_app(verifier: TokenVerifier, store: Store) -> FastAPI:
+    def get_document(self, user: Identity, doc_id: str) -> dict | None:
+        doc = self.documents_by_id.get(doc_id)
+        return doc if doc is not None and can_read(user.as_user(), doc) else None
+
+    def get_request(self, user: Identity, request_id: str) -> dict | None:
+        req = self.requests_by_id.get(request_id)
+        if req is None:
+            return None
+        member = self.members_by_id[req["member_id"]]
+        return req if can_read_request(user.as_user(), member) else None
+
+    def list_users(self, user: Identity) -> list[dict]:
+        return self.users if user.role == "admin" else []
+
+
+def create_app(verifier: TokenVerifier, store: DataStore) -> FastAPI:
     app = FastAPI(title="fde-lab auth bridge")
     bearer = HTTPBearer(auto_error=False)
 
@@ -75,30 +107,26 @@ def create_app(verifier: TokenVerifier, store: Store) -> FastAPI:
 
     @app.get("/documents")
     def list_documents(user: Identity = Depends(current_user)) -> list[dict]:
-        return [d for d in store.documents if can_read(user.as_user(), d)]
+        return store.list_documents(user)
 
     @app.get("/documents/{doc_id}")
     def get_document(doc_id: str, user: Identity = Depends(current_user)) -> dict:
-        doc = store.documents_by_id.get(doc_id)
+        doc = store.get_document(user, doc_id)
         if doc is None:
             raise HTTPException(404, "not_found")
-        if not can_read(user.as_user(), doc):
-            raise HTTPException(403, "forbidden")
         return doc
 
     @app.get("/requests/{request_id}")
     def get_request(request_id: str, user: Identity = Depends(current_user)) -> dict:
-        req = store.requests_by_id.get(request_id)
+        req = store.get_request(user, request_id)
         if req is None:
             raise HTTPException(404, "not_found")
-        if not can_read_request(user.as_user(), store.members_by_id[req["member_id"]]):
-            raise HTTPException(403, "forbidden")
         return req
 
     @app.get("/admin/users")
     def admin_users(user: Identity = Depends(current_user)) -> list[dict]:
         if user.role != "admin":
             raise HTTPException(403, "forbidden")
-        return store.users
+        return store.list_users(user)
 
     return app

@@ -111,7 +111,7 @@ class TestDocumentMatrix:
             status = client.get(
                 f"/documents/{doc['doc_id']}", headers=bearer(tokens[user_id])
             ).status_code
-            if status != (200 if can_read(user, doc) else 403):
+            if status != (200 if can_read(user, doc) else 404):
                 wrong.append((doc["doc_id"], status))
         assert wrong == []
 
@@ -164,14 +164,14 @@ class TestHandWrittenInvariants:
         response = client.get(
             f"/documents/{note['doc_id']}", headers=bearer(mint(["acme-um-reviewers-north"]))
         )
-        assert response.status_code == 403
+        assert response.status_code == 404
 
     def test_nobody_but_directors_can_open_an_exception_memo(self, client, mint, bearer, store):
         memo = next(d for d in store.documents if d["doc_type"] == "exception_memo")
         for groups, expected in [
-            (["acme-it-admins"], 403),
-            (["acme-claims-analysts-north"], 403),
-            (["acme-um-reviewers-north"], 403),
+            (["acme-it-admins"], 404),
+            (["acme-claims-analysts-north"], 404),
+            (["acme-um-reviewers-north"], 404),
             (["acme-medical-directors"], 200),
         ]:
             response = client.get(f"/documents/{memo['doc_id']}", headers=bearer(mint(groups)))
@@ -186,6 +186,25 @@ class TestHandWrittenInvariants:
         assert memo["body"] not in response.text
 
 
+class TestHiddenLooksLikeMissing:
+    """A caller must not be able to tell a forbidden id from one that does not exist."""
+
+    def test_forbidden_document_is_identical_to_a_missing_one(self, client, mint, bearer, store):
+        memo = next(d for d in store.documents if d["doc_type"] == "exception_memo")
+        for groups in (["acme-it-admins"], ["acme-um-reviewers-north"]):
+            headers = bearer(mint(groups))
+            hidden = client.get(f"/documents/{memo['doc_id']}", headers=headers)
+            missing = client.get("/documents/SYN-D-9999", headers=headers)
+            assert (hidden.status_code, hidden.content) == (missing.status_code, missing.content)
+
+    def test_forbidden_request_is_identical_to_a_missing_one(self, client, mint, bearer, store):
+        request_id = next(iter(store.requests_by_id))
+        headers = bearer(mint(["acme-claims-analysts-north"]))
+        hidden = client.get(f"/requests/{request_id}", headers=headers)
+        missing = client.get("/requests/SYN-R-999999", headers=headers)
+        assert (hidden.status_code, hidden.content) == (missing.status_code, missing.content)
+
+
 class TestRequestsAndAdmin:
     def test_oracle_agreement_on_a_sample_of_requests(self, client, tokens, bearer, store):
         wrong = []
@@ -195,13 +214,13 @@ class TestRequestsAndAdmin:
                 status = client.get(
                     f"/requests/{request['request_id']}", headers=bearer(tokens[user["user_id"]])
                 ).status_code
-                if status != (200 if can_read_request(user, member) else 403):
+                if status != (200 if can_read_request(user, member) else 404):
                     wrong.append((request["request_id"], user["user_id"], status))
         assert wrong == []
 
     def test_reviewer_reads_own_region_only(self, client, mint, bearer, store):
         token = mint(["acme-um-reviewers-north"])
-        for region, expected in [("north", 200), ("coast", 403), ("central", 403)]:
+        for region, expected in [("north", 200), ("coast", 404), ("central", 404)]:
             request = next(
                 r
                 for r in store.requests_by_id.values()
@@ -214,7 +233,7 @@ class TestRequestsAndAdmin:
     def test_non_clinicians_never_read_a_request(self, client, mint, bearer, store, groups):
         request_id = next(iter(store.requests_by_id))
         response = client.get(f"/requests/{request_id}", headers=bearer(mint(groups)))
-        assert response.status_code == 403
+        assert response.status_code == 404
 
     def test_only_admins_list_users(self, client, mint, bearer):
         for groups, expected in [

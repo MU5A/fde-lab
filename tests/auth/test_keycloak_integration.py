@@ -102,7 +102,7 @@ def test_request_access_matches_the_oracle_for_every_role(client, tokens, store)
             status = client.get(
                 f"/requests/{request['request_id']}", headers=_auth(tokens[user["user_id"]])
             ).status_code
-            if status != (200 if can_read_request(user, member) else 403):
+            if status != (200 if can_read_request(user, member) else 404):
                 wrong.append((user["user_id"], request["request_id"], status))
     assert wrong == []
 
