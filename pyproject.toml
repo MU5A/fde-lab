@@ -13,19 +13,27 @@ dependencies = []
 
 [project.optional-dependencies]
 auth = ["fastapi>=0.115", "pyjwt[crypto]>=2.9", "uvicorn>=0.30"]
-dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27", "fde-lab[auth]"]
+db = ["psycopg[binary,pool]>=3.2"]
+dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27", "fde-lab[auth,db]"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"fde_lab.db" = ["*.sql"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not integration'"
-markers = ["integration: needs a running Keycloak container (see tests/auth/test_keycloak_integration.py)"]
+addopts = "-m 'not integration and not db'"
+markers = [
+    "integration: needs a running Keycloak container (see docs/auth.md)",
+    "db: needs a running Postgres container (see docs/tenant-isolation.md)",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
