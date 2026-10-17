@@ -14,6 +14,7 @@ import psycopg
 from psycopg import sql
 
 from ..datagen import generate_all
+from ..retrieval.chunking import chunk_document
 
 OWNER_ROLE = "fde_owner"
 APP_ROLE = "fde_app"
@@ -124,6 +125,13 @@ def load_dataset(conn: psycopg.Connection, data: dict[str, list[dict]]) -> dict[
             )
             cur.executemany(query, [tuple(row[c] for c in columns) for row in rows[table]])
             counts[table] = len(rows[table])
+        chunks = [chunk for doc in data["documents"] for chunk in chunk_document(doc)]
+        cur.executemany(
+            "INSERT INTO fde.document_chunks (chunk_id, doc_id, ordinal, title, text) "
+            "VALUES (%(chunk_id)s, %(doc_id)s, %(ordinal)s, %(title)s, %(text)s)",
+            chunks,
+        )
+        counts["document_chunks"] = len(chunks)
     return counts
 
 

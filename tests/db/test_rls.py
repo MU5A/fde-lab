@@ -20,6 +20,7 @@ TABLES = (
     "members",
     "preauth_requests",
     "documents",
+    "document_chunks",
     "app_users",
     "review_decisions",
 )

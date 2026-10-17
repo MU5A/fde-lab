@@ -87,6 +87,23 @@ CREATE TABLE fde.documents (
   ref_request_id text REFERENCES fde.preauth_requests (request_id)
 );
 
+-- Retrieval chunks. A chunk carries no access rule of its own: the policy below makes it visible
+-- exactly when its parent document is, so changing a document's access takes effect on its
+-- chunks at once and there is no copy to go stale. The title is copied only so it can be weighted
+-- in the text index.
+CREATE TABLE fde.document_chunks (
+  chunk_id text PRIMARY KEY,
+  doc_id   text NOT NULL REFERENCES fde.documents (doc_id) ON DELETE CASCADE,
+  ordinal  integer NOT NULL,
+  title    text NOT NULL,
+  text     text NOT NULL,
+  tsv      tsvector GENERATED ALWAYS AS (
+             setweight(to_tsvector('english', title), 'A') || to_tsvector('english', text)
+           ) STORED,
+  UNIQUE (doc_id, ordinal)
+);
+CREATE INDEX document_chunks_tsv ON fde.document_chunks USING gin (tsv);
+
 -- A mirror of the identity provider's directory, readable by administrators only.
 CREATE TABLE fde.app_users (
   user_id      text PRIMARY KEY,
@@ -115,6 +132,7 @@ ALTER TABLE fde.providers         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fde.members           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fde.preauth_requests  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fde.documents         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fde.document_chunks   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fde.app_users         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fde.review_decisions  ENABLE ROW LEVEL SECURITY;
 
@@ -136,6 +154,10 @@ CREATE POLICY documents_read ON fde.documents FOR SELECT TO fde_app
   USING (fde.app_role() = ANY (allowed_roles)
          AND (tenant = '*' OR fde.app_region() = '*' OR fde.app_region() = tenant));
 
+-- The subquery runs as the caller, so documents' own policy decides which parents are visible.
+CREATE POLICY chunks_read ON fde.document_chunks FOR SELECT TO fde_app
+  USING (EXISTS (SELECT 1 FROM fde.documents d WHERE d.doc_id = document_chunks.doc_id));
+
 CREATE POLICY app_users_read ON fde.app_users FOR SELECT TO fde_app
   USING (fde.app_role() = 'admin');
 
@@ -152,8 +174,8 @@ CREATE POLICY decisions_insert ON fde.review_decisions FOR INSERT TO fde_app
 -- Privileges: least that works --------------------------------------------------------------
 
 GRANT USAGE ON SCHEMA fde TO fde_app;
-GRANT SELECT ON fde.providers, fde.preauth_requests, fde.documents, fde.app_users,
-                fde.review_decisions TO fde_app;
+GRANT SELECT ON fde.providers, fde.preauth_requests, fde.documents, fde.document_chunks,
+                fde.app_users, fde.review_decisions TO fde_app;
 -- ssn, phone and email are not granted at all. Row security says which rows; this says which columns.
 GRANT SELECT (member_id, name, dob, region, plan_id, effective_date, term_date, ytd_spend)
   ON fde.members TO fde_app;
