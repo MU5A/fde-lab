@@ -4,7 +4,8 @@ Environment:
   OIDC_ISSUER    expected `iss` claim (default: the local Keycloak realm)
   OIDC_AUDIENCE  expected `aud` claim (default: fde-lab-api)
   OIDC_JWKS_URL  where to fetch signing keys (default: derived from the issuer)
-  DATABASE_URL   Postgres connection as the fde_app role. Unset means the in-memory store.
+  DATABASE_URL   Postgres connection as the fde_app role. Unset means the in-memory store, and
+                 /search and /ask are only served when this is set.
   HOST, PORT     bind address (default: 127.0.0.1:8000)
 """
 
@@ -27,11 +28,12 @@ def build_app():
     if database_url:
         from ..db.session import make_pool
         from ..db.store import PgStore
+        from ..retrieval.assistant import Assistant, extractive_model
+        from ..retrieval.pg import PgRetriever
 
-        store = PgStore(make_pool(database_url))
-    else:
-        store = Store.generate(int(os.environ.get("SEED", "42")))
-    return create_app(verifier, store)
+        pool = make_pool(database_url)
+        return create_app(verifier, PgStore(pool), Assistant(PgRetriever(pool), extractive_model))
+    return create_app(verifier, Store.generate(int(os.environ.get("SEED", "42"))))
 
 
 def main() -> None:

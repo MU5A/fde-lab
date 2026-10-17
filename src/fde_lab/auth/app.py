@@ -12,6 +12,7 @@ two cases can no longer be told apart and the limit is closed.
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,9 +20,12 @@ from typing import Protocol
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
 
 from ..datagen import generate_all
 from ..datagen.acl import can_read, can_read_request
+from ..retrieval.assistant import Assistant
+from ..retrieval.guard import PermissionLeak
 from .tokens import Identity, KeyServiceUnavailable, RoleError, TokenError, TokenVerifier
 
 
@@ -74,7 +78,20 @@ class Store:
         return self.users if user.role == "admin" else []
 
 
-def create_app(verifier: TokenVerifier, store: DataStore) -> FastAPI:
+log = logging.getLogger(__name__)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+class SearchRequest(AskRequest):
+    k: int = Field(5, ge=1, le=10)
+
+
+def create_app(
+    verifier: TokenVerifier, store: DataStore, assistant: Assistant | None = None
+) -> FastAPI:
     app = FastAPI(title="fde-lab auth bridge")
     bearer = HTTPBearer(auto_error=False)
 
@@ -128,5 +145,45 @@ def create_app(verifier: TokenVerifier, store: DataStore) -> FastAPI:
         if user.role != "admin":
             raise HTTPException(403, "forbidden")
         return store.list_users(user)
+
+    if assistant is not None:
+
+        def fail_closed(exc: PermissionLeak) -> HTTPException:
+            # Ids only. The text that should not have been returned is never logged or sent.
+            log.error("retrieval returned unreadable passages: %s", exc.chunk_ids)
+            return HTTPException(500, "retrieval_failed_closed")
+
+        # Both take the question in the body, never the URL: questions may name a patient, and
+        # URLs end up in access logs, proxy logs and browser history.
+        @app.post("/search")
+        def search(body: SearchRequest, user: Identity = Depends(current_user)) -> list[dict]:
+            try:
+                passages = assistant.search(user, body.question, body.k)
+            except PermissionLeak as exc:
+                raise fail_closed(exc) from exc
+            return [
+                {
+                    "chunk_id": p.chunk_id,
+                    "doc_id": p.doc_id,
+                    "doc_type": p.doc_type,
+                    "title": p.title,
+                    "text": p.text,
+                }
+                for p in passages
+            ]
+
+        @app.post("/ask")
+        def ask(body: AskRequest, user: Identity = Depends(current_user)) -> dict:
+            try:
+                answer = assistant.ask(user, body.question)
+            except PermissionLeak as exc:
+                raise fail_closed(exc) from exc
+            return {
+                "answer": answer.text,
+                "sources": [
+                    {"doc_id": s.doc_id, "chunk_id": s.chunk_id, "title": s.title}
+                    for s in answer.sources
+                ],
+            }
 
     return app
