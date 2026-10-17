@@ -46,6 +46,7 @@ flowchart LR
 |---|---|---|
 | `documents` | roles listed on the document | role is in `allowed_roles`, and tenant is `*` or matches the caller's region, or the caller is cross-region |
 | `preauth_requests`, `members` | reviewers (own region), medical directors (all) | region matches or caller is cross-region |
+| `document_chunks` | whoever can read the parent document | the parent document is visible to the caller, so a chunk has no access rule of its own (Day 4) |
 | `app_users` | administrators | role is `admin` |
 | `providers` | any valid role | a valid principal exists |
 | `review_decisions` | reviewers (own region), medical directors | same as requests. Insert needs the same plus `decided_by` equal to the caller's subject. Never updated or deleted. |
@@ -54,15 +55,15 @@ flowchart LR
 chooses rows, and column grants choose columns, so these are two separate controls.
 
 The routing labels (ground truth) are not loaded into this database. They are evaluation data and
-the application has no business reading them. A test asserts the schema holds exactly the six
-tables above.
+the application has no business reading them. A test asserts the schema holds exactly the
+seven tables above.
 
 ## Traps, and how each is handled
 
 | Trap | What goes wrong | Handling | Test |
 |---|---|---|---|
 | Connecting as a superuser, `BYPASSRLS` role or table owner | Policies are silently ignored and everything is visible | Separate roles. The pool refuses to start unless the role is subject to RLS on every table. | `TestStartupGuard`, `test_the_pool_will_not_start_as_a_superuser` |
-| Principal not set | A policy that compares with an unset value could pass | Unset, empty, unknown or inconsistent values resolve to `NULL`, and every policy treats `NULL` as no access | `TestFailClosed` (15 bad principals across 6 tables) |
+| Principal not set | A policy that compares with an unset value could pass | Unset, empty, unknown or inconsistent values resolve to `NULL`, and every policy treats `NULL` as no access | `TestFailClosed` (15 bad principals across 7 tables) |
 | Regional role with region `*`, or `admin` pinned to a region | Privilege escalation through an inconsistent pair | `app_role()` returns a role only for a valid role and region pairing | `test_invalid_principals_see_nothing` |
 | Session-level `SET` on a pooled connection | The previous user's identity is inherited by the next request | `set_config(..., true)` is transaction-local, and the pool also resets the settings when a connection is returned | `TestPooledConnections`, including a negative control that shows the leak |
 | Views | A default view runs as its owner and bypasses RLS | `security_invoker` views. The test builds both kinds and shows the leak and the fix. | `TestGotchas` |
@@ -101,11 +102,11 @@ the policies themselves turned up this time.
 pip install -e ".[dev]"
 docker compose -f infra/compose.yaml up -d --wait postgres
 python -m fde_lab.db                          # create roles and schema, load the dataset
-REQUIRE_POSTGRES=1 pytest -m db -q            # 262 tests
+REQUIRE_POSTGRES=1 pytest -m db -q            # the database tests
 DATABASE_URL=postgresql://fde_app:synthetic-app@localhost:5432/fdelab python -m fde_lab.auth
 ```
 
-`pytest -q` on its own runs the 171 tests that need no containers.
+`pytest -q` on its own runs the tests that need no containers.
 
 ## What this does not protect against
 

@@ -67,7 +67,7 @@ directors (all regions) can read them. Claims analysts and administrators cannot
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                                    # 171 tests, no containers needed
+pytest -q                                    # the tests that need no containers
 
 docker compose -f infra/compose.yaml up -d   # Keycloak 26.7.5 with the acme realm imported
 REQUIRE_KEYCLOAK=1 pytest -m integration -q  # 37 tests using real Keycloak tokens

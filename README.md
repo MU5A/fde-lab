@@ -33,7 +33,7 @@ other, which separate demos cannot.
 | 1 | Oct 16 | Discovery and scoping, synthetic customer, gold rules | **Done** |
 | 2 | Oct 17 | OIDC auth bridge | **Done** |
 | 3 | Oct 18 | Tenant isolation with row-level security | **Done** |
-| 4 | Oct 19 | Permission-filtered retrieval | Planned |
+| 4 | Oct 19 | Permission-filtered retrieval | **Done** |
 | 5 | Oct 20 | PII guardrail proxy | Planned |
 | 6 | Oct 21 | Human-approval workflow | Planned |
 | 7 | Oct 22 | Document extraction from noisy scans | Planned |
@@ -95,8 +95,8 @@ No route is a denial. The system routes, and clinicians decide.
   claim. No role or ambiguous role is a 403, never a guess.
 - A Keycloak realm generated from the synthetic users and committed under `infra/keycloak/`, with
   a test that fails if it drifts from the generator.
-- 171 tests that need nothing but Python, plus 37 that run against real Keycloak tokens in a
-  separate CI job. An unreachable Keycloak fails that job instead of skipping.
+- 171 tests that need nothing but Python (as of Day 2), plus 37 that run against real Keycloak
+  tokens in a separate CI job. An unreachable Keycloak fails that job instead of skipping.
 - A key-rotation bug the tests found and fixed. See "A bug the tests found" in the auth doc.
 
 ### What the tests prove
@@ -121,7 +121,7 @@ No route is a denial. The system routes, and clinicians decide.
   a schema with an unprotected table. These are the silent ways RLS stops working.
 - Identifying columns (`ssn`, `phone`, `email`) that the application role cannot read, and an
   append-only decisions table that Day 6 will write to.
-- 262 tests in their own CI job against a real Postgres. A hidden resource now returns the same
+- 262 tests (as of Day 3) in their own CI job against a real Postgres. A hidden resource now returns the same
   404 as a missing one, which closes a limit recorded on Day 2.
 - A mutation run: 17 deliberate breakages of the policies, grants and session code, every one
   caught by the suite.
@@ -141,6 +141,37 @@ No route is a denial. The system routes, and clinicians decide.
 | Any future table without row security fails the build | `TestCatalogGuards` |
 | The Postgres store and the in-memory store return identical responses | `test_api_pg.py` |
 
+## Day 4: what exists
+
+- [`docs/retrieval.md`](docs/retrieval.md): how a question reaches the model, why the filter lives
+  in the query, the traps, measured retrieval quality, and what it does not do.
+- Full-text retrieval over document chunks where the access filter is supplied by the database.
+  A chunk is visible exactly when its parent document is, so revoking a document hides its chunks
+  at once. `POST /search` and `POST /ask`, with the question in the body and never the URL.
+- A second, independent check of every passage before it reaches a prompt. A violation fails
+  the request closed and the model is never called.
+- 2,844 attack questions across all 15 users, each checked against every hidden document's
+  canary and text in the prompt, with positive controls showing the attacks work on an unprotected
+  index and the checker catches the result.
+- Filtering after ranking, measured against filtering in the query: 27 percent fewer results.
+- Quality on synthetic questions with ties counted against retrieval: strong when wording matches
+  the documents, weak for a bare code that several notes also cite, and weak for paraphrases.
+  The doc reports what the evaluation found, including a metric I made stricter after it flattered.
+- 256 tests that need nothing but Python and 390 against Postgres. 15 deliberate breakages of the
+  retrieval and evaluation code, every one caught.
+
+### What the tests prove
+
+| Property | Test |
+|---|---|
+| Nothing a caller may not read reaches the prompt, however it is asked for | `TestNoLeak` |
+| In-query filtering returns exactly the top k of what the user may read | `TestCorrectness` |
+| A chunk's visibility follows its document's, including after revocation and grant | `TestChunkAccess` |
+| A broken retriever cannot reach the model | `TestAssistantFailsClosed`, `TestFailsClosedOverHttp` |
+| Hostile query text changes nothing | `TestHostileInput` |
+| Scores do not depend on documents the caller cannot see | `test_scores_do_not_depend_on_documents_the_caller_cannot_see` |
+| The evaluation's own ranking and tie rules | `test_evaluate.py` |
+
 ## Run it
 
 Requires Python 3.11 or newer. The integration and database tests also need Docker.
@@ -153,6 +184,7 @@ python -m fde_lab.datagen --seed 42 --out data/generated --print-digest
 
 docker compose -f infra/compose.yaml up -d --wait
 python -m fde_lab.db
+python -m fde_lab.retrieval.evaluate
 REQUIRE_KEYCLOAK=1 pytest -m integration -q
 REQUIRE_POSTGRES=1 pytest -m db -q
 DATABASE_URL=postgresql://fde_app:synthetic-app@localhost:5432/fdelab python -m fde_lab.auth
@@ -161,14 +193,17 @@ DATABASE_URL=postgresql://fde_app:synthetic-app@localhost:5432/fdelab python -m 
 ## Layout
 
 ```
-docs/                    discovery, architecture, synthetic data, auth bridge, tenant isolation
+docs/                    discovery, architecture, synthetic data, auth bridge, tenant isolation,
+                         retrieval
 src/fde_lab/datagen/     generator, routing rules, access-control oracle
 src/fde_lab/auth/        token verification, role resolution, API, Keycloak realm builder
 src/fde_lab/db/          schema and policies, session handling, startup guard, Postgres store
+src/fde_lab/retrieval/   chunking, search, guard, prompt, assistant, evaluation
 infra/                   Keycloak and Postgres compose file, the generated realm
 tests/                   determinism, synthetic-data guard, rules, access control
 tests/auth/              token attacks, access matrix, key rotation, real-Keycloak tests
-tests/db/                row-level security, pooling, writes, startup guard, API on Postgres
+tests/db/                row-level security, pooling, writes, startup guard, retrieval on Postgres
+tests/retrieval/         chunking, query handling, prompt, guard, evaluation metric
 ```
 
 ## License
