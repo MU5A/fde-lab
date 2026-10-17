@@ -99,6 +99,9 @@ jobs:
           REQUIRE_POSTGRES: "1"
         run: pytest -m db -q
 
+      - name: Retrieval quality report
+        run: python -m fde_lab.retrieval.evaluate
+
       - name: Postgres logs
         if: failure()
         run: docker compose -f infra/compose.yaml logs postgres
